@@ -184,6 +184,14 @@ poetry.toml
 # LSP config files
 pyrightconfig.json
 
+license.txt
+md5sums
+s2v.json
+stats.txt
+word2vec.model
+checkpoints/
+data/
+
 ### VisualStudioCode ###
 .vscode/*
 !.vscode/settings.json
