@@ -5,6 +5,9 @@
 # gitignore template for Jupyter Notebooks
 # website: http://jupyter.org/
 
+data/*
+models/*
+
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 
@@ -191,6 +194,7 @@ stats.txt
 word2vec.model
 checkpoints/
 data/
+playlists_data/
 
 ### VisualStudioCode ###
 .vscode/*
