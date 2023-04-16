@@ -193,7 +193,6 @@ s2v.json
 stats.txt
 word2vec.model
 checkpoints/
-data/
 playlists_data/
 
 ### VisualStudioCode ###
