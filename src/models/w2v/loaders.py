@@ -13,6 +13,13 @@ class PlaylistIterator:
         self.path = path
         self.limit = limit
 
+    def __len__(self):
+        if not hasattr(self, "__n_samples"):
+            for i, _ in enumerate(iter(self)):
+                pass
+            self.__n_samples = i
+        return self.__n_samples
+
     def __iter__(self):
         fnames = sorted(os.listdir(self.path), key=_chunk_index)
 
@@ -27,9 +34,9 @@ class PlaylistIterator:
 
                 for plist in slice["playlists"]:
                     n_read += 1
+                    yield plist
                     if self.limit is not None and n_read > self.limit:
                         return
-                    yield plist
             else:
                 logging.warning(f"{fname} not expected")
 
