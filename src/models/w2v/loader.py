@@ -29,7 +29,7 @@ class PlaylistIterator:
                 fullpath = os.sep.join((self.path, fname))
 
                 with open(fullpath) as f:
-                    logging.info(f"Reading {fname}")
+                    logging.debug(f"Reading {fname}")
                     slice = json.loads(f.read())
 
                 for plist in slice["playlists"]:
@@ -40,11 +40,3 @@ class PlaylistIterator:
             else:
                 logging.warning(f"{fname} not expected")
 
-
-
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-    pi = PlaylistIterator("./data/processed")
-    for i in pi:
-        pass
-    print("DONE")

@@ -1,4 +1,4 @@
-from loaders import PlaylistIterator
+from src.models.w2v.loader import PlaylistIterator
 from callbacks import LogEpochLossCallback
 import os
 from argparse import ArgumentParser

@@ -1,5 +1,5 @@
 import pytest
-from src.models.w2v.loaders import PlaylistIterator
+from src.models.w2v.loader import PlaylistIterator
 
 def get_iterator(k):
     return PlaylistIterator("./data/processed", k)
