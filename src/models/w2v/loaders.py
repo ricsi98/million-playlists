@@ -17,7 +17,7 @@ class PlaylistIterator:
         if not hasattr(self, "__n_samples"):
             for i, _ in enumerate(iter(self)):
                 pass
-            self.__n_samples = i
+            self.__n_samples = i + 1
         return self.__n_samples
 
     def __iter__(self):
@@ -35,7 +35,7 @@ class PlaylistIterator:
                 for plist in slice["playlists"]:
                     n_read += 1
                     yield plist
-                    if self.limit is not None and n_read > self.limit:
+                    if self.limit is not None and n_read >= self.limit:
                         return
             else:
                 logging.warning(f"{fname} not expected")
