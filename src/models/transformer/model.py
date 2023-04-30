@@ -25,7 +25,6 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
     
 
-
 class TransformerModel(nn.Module):
 
     def __init__(self, embeddings, nhead: int, d_hid: int,
@@ -59,14 +58,14 @@ class TransformerModel(nn.Module):
                 apply_softmax: bool = False) -> torch.Tensor:
         """
         Args:
-            src: Tensor, shape [seq_len, batch_size]
-            src_mask: Tensor, shape [seq_len, seq_len]
+            src: Tensor, shape [batch_size, seq_len]
+            src_mask: Tensor, shape [batch_size, seq_len]
         Returns:
             output Tensor of shape [seq_len, batch_size, ntoken]
         """
-        src = self.encoder(src) * math.sqrt(self.d_model)
-        src = self.pos_encoder(src.transpose(0,1))
-        output = self.transformer_encoder(src, src_mask)
+        src = self.encoder(src) * math.sqrt(self.d_model) # bs * sl * h
+        src = self.pos_encoder(src.transpose(0,1)) # sl * bs * h
+        output = self.transformer_encoder(src, src_mask) # sl * bs * h
         seq_len, batch_size, d_latent = output.shape
         output = self.decoder(output.view(-1, d_latent))
         if apply_softmax:

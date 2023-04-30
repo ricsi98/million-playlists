@@ -1,75 +1,70 @@
-import os
-from argparse import ArgumentParser
-
-import lightning as pl
 import torch
-from gensim.models import Word2Vec
-from loader import PlaylistDataset
-from model import TransformerModel
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, Dataset
+from pytorch_lightning import LightningModule
+import logging
 
-
-def _build_dataset(args):
-    files = sorted([os.path.join(args.playlists, f) for f in os.listdir(args.playlists)])
-    limit = args.limit if args.limit > 0 else None
-    # TODO: transforms
-    return PlaylistDataset(files, limit)
-
-
-def _load_embeddings(path):
-    wv = Word2Vec.load(path).wv
-    return torch.tensor(wv)
-
-
-def _build_model(args):
-    return TransformerModel(
-        embeddings=_load_embeddings(args.embeddings),
-        nhead=args.heads,
-        nlayers=args.layers,
-        dropout=args.pdropout,
-        d_hid=args.dhidden
-    )
-
-
-class ModelWrapper(pl.LightningModule):
-
-    def __init__(self, model) -> None:
-        super().__init__()
-        self.model = model
-
-    def training_step(self, batch, batch_idx):
-        pass
-
-    def configure_optimizers(self):
-        pass
-
-
-def main():
-    parser = ArgumentParser()
-    # I/O
-    parser.add_argument("--embeddings", type=str, required=True, help="path to learned embeddings")
-    parser.add_argument("--output", type=str, required=True, help="path where to save model")
-    parser.add_argument("--playlists", type=str, required=True, help="path to playlist files")
-    parser.add_argument("--ppf", type=int, default=50000, help="playlist per file (required for indexing)")
-    parser.add_argument("--limit", type=int, default=-1, help="if specified, only use this many training examples (playlists)")
-    
-    # Model
-    parser.add_argument("--positional", type=bool, default=False, help="whether to user positional embeddings")
-    parser.add_argument("--heads", type=int, default=4, help="number of attention heads to user")
-    parser.add_argument("--layers", type=int, default=2, help="number of encoder layers to use")
-    parser.add_argument("--dhidden", type=int, default=64, help="size of hidden layers in transformer encoder")
-    parser.add_argument("--pdropout", type=float, default=.5, help="dropout probability")
-
-    # Optimizer
+class MaskedLanguageModelDataset(Dataset):
+    # Implement your dataset class to provide tokenized sequences
     ...
 
-    args = parser.parse_args()
-    
-    dataset = _build_dataset(args)
-    model = ModelWrapper(_build_model(args))
-    trainer = pl.Trainer()
 
-    trainer.fit(model, dataset)
+def mask_tokens(inputs, mask_token_id, mask_prob):
+    """
+    Prepare masked tokens inputs/labels for masked language modeling: randomly masks some of the tokens
+    from the inputs to train the model to predict those tokens.
+    """
+    labels = inputs.clone()
+    mask = torch.full(labels.shape, False, dtype=torch.bool)
+
+    for i in range(inputs.size(0)):
+        mask[i] = torch.bernoulli(torch.full(labels[i].shape, mask_prob)).bool()
+        labels[i] = labels[i].masked_fill(mask[i], -100)
+        inputs[i] = inputs[i].masked_fill(mask[i], mask_token_id)
+
+    return inputs, labels
 
 
-if __name__ == "__main__":
-    main()
+class MaskedLanguageModel(LightningModule):
+
+    def __init__(self, model, mask_token_id, mask_prob, lr=3e-5):
+        super().__init__()
+        self.model = model
+        self.mask_token_id = mask_token_id
+        self.mask_prob = mask_prob
+        self.lr = lr
+
+    def forward(self, x, src_mask=None):
+        return self.model(x, src_mask, apply_softmax=True)
+
+    def create_combined_mask(self, src, pad_mask):
+        seq_len = src.size(1)
+        #subsequent_mask = (torch.triu(torch.ones(seq_len, seq_len)) == 0).float().masked_fill_(torch.triu(torch.ones(seq_len, seq_len)) == 0, float('-inf'))
+        subsequent_mask = (torch.triu(torch.ones(seq_len, seq_len)) == 0).float().masked_fill_(torch.triu(torch.ones(seq_len, seq_len)) == 0, float('-inf'))
+        logging.warning("HELO SUBSEQUENT MERET" + str(subsequent_mask.shape))
+        combined_mask = subsequent_mask.unsqueeze(0) * pad_mask.unsqueeze(1).unsqueeze(2)
+        logging.warning("HELO COMBINED MERET" + str(combined_mask.shape))
+        return combined_mask
+
+    def training_step(self, batch, batch_idx):
+        inputs, pad_mask = batch
+        inputs, labels = mask_tokens(inputs, self.mask_token_id, self.mask_prob)
+        src_mask = self.create_combined_mask(inputs, pad_mask)
+        
+        logging.warning("HELO MASK MERET" + str(src_mask.shape))
+        predictions = self(inputs, src_mask)
+        # TODO: itt a predictions as sl * bs * ntoken mig a labels az bs * sl * ntoken
+        loss = F.cross_entropy(predictions.view(-1, self.model.ntoken), labels.view(-1), ignore_index=-100)
+        self.log('train_loss', loss)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        inputs, pad_mask = batch
+        inputs, labels = mask_tokens(inputs, self.mask_token_id, self.mask_prob)
+        src_mask = self.create_combined_mask(inputs, pad_mask)
+        predictions = self(inputs, src_mask)
+        loss = F.cross_entropy(predictions.view(-1, self.model.ntoken), labels.view(-1), ignore_index=-100)
+        self.log('val_loss', loss)
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
