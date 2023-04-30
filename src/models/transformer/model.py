@@ -32,6 +32,7 @@ class TransformerModel(nn.Module):
                  nlayers: int, dropout: float = 0.5):
         super().__init__()
         ntoken, d_model = embeddings.shape
+        self.ntoken = ntoken
         self.model_type = 'Transformer'
         self.pos_encoder = PositionalEncoding(d_model, dropout)
         encoder_layers = nn.TransformerEncoderLayer(d_model, nhead, d_hid, dropout)
@@ -54,7 +55,8 @@ class TransformerModel(nn.Module):
             self.encoder.weight.requires_grad = False
             self.decoder.weight.requires_grad = False
 
-    def forward(self, src: torch.Tensor, src_mask: torch.Tensor) -> torch.Tensor:
+    def forward(self, src: torch.Tensor, src_mask: torch.Tensor = None, \
+                apply_softmax: bool = False) -> torch.Tensor:
         """
         Args:
             src: Tensor, shape [seq_len, batch_size]
@@ -63,7 +65,10 @@ class TransformerModel(nn.Module):
             output Tensor of shape [seq_len, batch_size, ntoken]
         """
         src = self.encoder(src) * math.sqrt(self.d_model)
-        src = self.pos_encoder(src)
+        src = self.pos_encoder(src.transpose(0,1))
         output = self.transformer_encoder(src, src_mask)
-        output = self.decoder(output)
-        return output
+        seq_len, batch_size, d_latent = output.shape
+        output = self.decoder(output.view(-1, d_latent))
+        if apply_softmax:
+            output = torch.softmax(output, dim=1)
+        return output.view(seq_len, batch_size, self.ntoken)
