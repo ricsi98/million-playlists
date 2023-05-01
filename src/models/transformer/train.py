@@ -47,7 +47,7 @@ class MaskedLanguageModel(LightningModule):
         self.lr = lr
 
     def forward(self, x, src_mask=None):
-        return self.model(x, src_mask, apply_softmax=True)
+        return self.model(x, src_mask, apply_softmax=True, is_causal=True)
 
 
     def training_step(self, batch, batch_idx):

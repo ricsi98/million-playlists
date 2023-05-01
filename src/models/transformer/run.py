@@ -26,8 +26,9 @@ def _build_dataset(args, wv):
     )
 
     limit = args.limit if args.limit > 0 else None
+    assert limit is None, f"Currently not supported limit={args.limit, limit}"
 
-    return PlaylistDataset(files, limit, transform=transforms)
+    return PlaylistDataset(files, playlist_per_file=args.ppf, transform=transforms)
 
 
 def _build_model(args):

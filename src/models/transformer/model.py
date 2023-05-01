@@ -55,7 +55,7 @@ class TransformerModel(nn.Module):
             self.decoder.weight.requires_grad = False
 
     def forward(self, src: torch.Tensor, src_mask: torch.Tensor = None, \
-                apply_softmax: bool = False) -> torch.Tensor:
+                apply_softmax: bool = False, **kwargs) -> torch.Tensor:
         """
         Args:
             src: Tensor, shape [batch_size, seq_len]
@@ -65,7 +65,7 @@ class TransformerModel(nn.Module):
         """
         src = self.encoder(src).transpose(0,1) * math.sqrt(self.d_model) # sl * bs * h
         src = self.pos_encoder(src) # sl * bs * h
-        output = self.transformer_encoder(src, src_mask) # sl * bs * h
+        output = self.transformer_encoder(src, src_mask, **kwargs) # sl * bs * h
         seq_len, batch_size, d_latent = output.shape
         output = self.decoder(output.view(-1, d_latent)) # flatten sl*bs dims to apply decoder Linera model
         if apply_softmax:
