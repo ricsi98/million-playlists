@@ -46,28 +46,36 @@ class MaskedLanguageModel(LightningModule):
         self.mask_prob = mask_prob
         self.lr = lr
 
-    def forward(self, x, src_mask=None):
-        return self.model(x, src_mask, apply_softmax=True, is_causal=True)
+    def forward(self, x, **kwargs):
+        return self.model(x, apply_softmax=True, **kwargs)
 
 
     def training_step(self, batch, batch_idx):
-        inputs, pad_mask = batch
+        inputs = batch
         labels = inputs.clone()
-        #inputs, labels = mask_tokens(inputs, self.mask_token_id, self.mask_prob)
-        #src_mask = add_subsequent_mask(inputs, pad_mask)
-        
-        predictions = self(inputs)#, src_mask)
+
+        seq_len = inputs.shape[1]
+        src_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
+        src_key_padding_mask = (inputs == self.mask_token_id).bool()
+
+        predictions = self(inputs, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
+
         loss = F.cross_entropy(predictions.contiguous().view(-1, self.model.ntoken), labels.view(-1), ignore_index=-100)
         self.log('train_loss', loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        inputs, pad_mask = batch
-        inputs, labels = mask_tokens(inputs, self.mask_token_id, self.mask_prob)
-        #src_mask = self.create_combined_mask(inputs, pad_mask)
-        predictions = self(inputs)#, src_mask)
+        inputs = batch
+        labels = inputs.clone()
+
+        seq_len = inputs.shape[1]
+        src_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
+        src_key_padding_mask = (inputs == self.mask_token_id).bool()
+
+        predictions = self(inputs, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
+        
         loss = F.cross_entropy(predictions.contiguous().view(-1, self.model.ntoken), labels.view(-1), ignore_index=-100)
-        self.log('val_loss', loss)
+        self.log('val_loss', loss, prog_bar=True)
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)

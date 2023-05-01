@@ -21,8 +21,7 @@ def _build_dataset(args, wv):
         RemoveUnknownTracks(wv.key_to_index.keys()),
         TrackURI2Idx(wv.key_to_index, offset=1),
         PadOrTrim(PAD_TOKEN, args.seqlen),
-        ToLongTensor(),
-        IncludePaddingMask(PAD_TOKEN)
+        ToLongTensor()
     )
 
     limit = args.limit if args.limit > 0 else None

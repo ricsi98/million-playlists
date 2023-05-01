@@ -53,13 +53,3 @@ class PadOrTrim:
         if len(x) < self.t:
             return x + [self.token] * (self.t - len(x))
         return x[:self.t]
-
-
-class IncludePaddingMask:
-
-    def __init__(self, pad_token):
-        self.token = pad_token
-
-    @torch.no_grad()
-    def __call__(self, x):
-        return x, (x == self.token).bool()
