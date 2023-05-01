@@ -3,14 +3,15 @@ from argparse import ArgumentParser
 
 import lightning as pl
 import torch
+import numpy as np
 from gensim.models import Word2Vec
 from loader import PlaylistDataset
 from model import TransformerModel
+from train import MaskedLanguageModel
 from transform import *
 
 
 PAD_TOKEN = 0
-MASK_TOKEN = 1
 
 
 def _build_dataset(args, wv):
@@ -18,9 +19,10 @@ def _build_dataset(args, wv):
 
     transforms = Compose(
         RemoveUnknownTracks(wv.key_to_index.keys()),
-        TrackURI2Idx(wv.key_to_index, offset=2),
+        TrackURI2Idx(wv.key_to_index, offset=1),
         PadOrTrim(PAD_TOKEN, args.seqlen),
-        ToLongTensor()
+        ToLongTensor(),
+        IncludePaddingMask(PAD_TOKEN)
     )
 
     limit = args.limit if args.limit > 0 else None
@@ -30,26 +32,19 @@ def _build_dataset(args, wv):
 
 def _build_model(args):
     wv = Word2Vec.load(args.embeddings).wv
-    return TransformerModel(
-        embeddings=torch.tensor(wv),
+    dim = wv.vectors.shape[1]
+    embeddings = np.concatenate((np.random.normal(size=(1, dim)), wv.vectors), axis=0)
+    transformer = TransformerModel(
+        embeddings=torch.tensor(embeddings),
         nhead=args.heads,
         nlayers=args.layers,
         dropout=args.pdropout,
         d_hid=args.dhidden
-    ), wv
+    )
+    m = MaskedLanguageModel(transformer, 100, 0)
+    return m, wv
 
 
-class ModelWrapper(pl.LightningModule):
-
-    def __init__(self, model) -> None:
-        super().__init__()
-        self.model = model
-
-    def training_step(self, batch, batch_idx):
-        ...
-
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.model.parameters(), lr=1e-3)
 
 
 def main():
@@ -72,13 +67,17 @@ def main():
     # Optimizer
     ...
 
+    # Training
+    parser.add_argument("--batchsize", type=int, default=256)
+
     args = parser.parse_args()
     
-    model, wv = ModelWrapper(_build_model(args))
+    model, wv = _build_model(args)
     dataset = _build_dataset(args, wv)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=args.batchsize, shuffle=False)
     trainer = pl.Trainer()
 
-    trainer.fit(model, dataset)
+    trainer.fit(model, loader)
 
 
 if __name__ == "__main__":

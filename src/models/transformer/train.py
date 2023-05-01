@@ -1,8 +1,9 @@
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset
-from pytorch_lightning import LightningModule
+from torch.utils.data import Dataset
+from lightning import LightningModule
 import logging
+
 
 class MaskedLanguageModelDataset(Dataset):
     # Implement your dataset class to provide tokenized sequences
@@ -25,6 +26,17 @@ def mask_tokens(inputs, mask_token_id, mask_prob):
     return inputs, labels
 
 
+def add_subsequent_mask(src, mask):
+    """1 in mask means we want to cover that"""
+    seq_len = src.size(1)
+    mask = mask.clone().masked_fill_(mask == 1, float('-inf'))
+    subsequent_mask = (torch.triu(torch.ones(seq_len, seq_len)) == 0).float().masked_fill_(torch.triu(torch.ones(seq_len, seq_len)) == 0, float('-inf')).T
+    logging.warning("HELO SUBSEQUENT MERET" + str(subsequent_mask.shape))
+    combined_mask = subsequent_mask.unsqueeze(0) + mask.unsqueeze(1).unsqueeze(2)
+    logging.warning("HELO COMBINED MERET" + str(combined_mask.shape))
+    return combined_mask
+
+
 class MaskedLanguageModel(LightningModule):
 
     def __init__(self, model, mask_token_id, mask_prob, lr=3e-5):
@@ -37,33 +49,24 @@ class MaskedLanguageModel(LightningModule):
     def forward(self, x, src_mask=None):
         return self.model(x, src_mask, apply_softmax=True)
 
-    def create_combined_mask(self, src, pad_mask):
-        seq_len = src.size(1)
-        #subsequent_mask = (torch.triu(torch.ones(seq_len, seq_len)) == 0).float().masked_fill_(torch.triu(torch.ones(seq_len, seq_len)) == 0, float('-inf'))
-        subsequent_mask = (torch.triu(torch.ones(seq_len, seq_len)) == 0).float().masked_fill_(torch.triu(torch.ones(seq_len, seq_len)) == 0, float('-inf'))
-        logging.warning("HELO SUBSEQUENT MERET" + str(subsequent_mask.shape))
-        combined_mask = subsequent_mask.unsqueeze(0) * pad_mask.unsqueeze(1).unsqueeze(2)
-        logging.warning("HELO COMBINED MERET" + str(combined_mask.shape))
-        return combined_mask
 
     def training_step(self, batch, batch_idx):
         inputs, pad_mask = batch
-        inputs, labels = mask_tokens(inputs, self.mask_token_id, self.mask_prob)
-        src_mask = self.create_combined_mask(inputs, pad_mask)
+        labels = inputs.clone()
+        #inputs, labels = mask_tokens(inputs, self.mask_token_id, self.mask_prob)
+        #src_mask = add_subsequent_mask(inputs, pad_mask)
         
-        logging.warning("HELO MASK MERET" + str(src_mask.shape))
-        predictions = self(inputs, src_mask)
-        # TODO: itt a predictions as sl * bs * ntoken mig a labels az bs * sl * ntoken
-        loss = F.cross_entropy(predictions.view(-1, self.model.ntoken), labels.view(-1), ignore_index=-100)
-        self.log('train_loss', loss)
+        predictions = self(inputs)#, src_mask)
+        loss = F.cross_entropy(predictions.contiguous().view(-1, self.model.ntoken), labels.view(-1), ignore_index=-100)
+        self.log('train_loss', loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         inputs, pad_mask = batch
         inputs, labels = mask_tokens(inputs, self.mask_token_id, self.mask_prob)
-        src_mask = self.create_combined_mask(inputs, pad_mask)
-        predictions = self(inputs, src_mask)
-        loss = F.cross_entropy(predictions.view(-1, self.model.ntoken), labels.view(-1), ignore_index=-100)
+        #src_mask = self.create_combined_mask(inputs, pad_mask)
+        predictions = self(inputs)#, src_mask)
+        loss = F.cross_entropy(predictions.contiguous().view(-1, self.model.ntoken), labels.view(-1), ignore_index=-100)
         self.log('val_loss', loss)
 
     def configure_optimizers(self):

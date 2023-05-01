@@ -61,13 +61,13 @@ class TransformerModel(nn.Module):
             src: Tensor, shape [batch_size, seq_len]
             src_mask: Tensor, shape [batch_size, seq_len]
         Returns:
-            output Tensor of shape [seq_len, batch_size, ntoken]
+            output Tensor of shape [batch_size, seq_len, ntoken]
         """
-        src = self.encoder(src) * math.sqrt(self.d_model) # bs * sl * h
-        src = self.pos_encoder(src.transpose(0,1)) # sl * bs * h
+        src = self.encoder(src).transpose(0,1) * math.sqrt(self.d_model) # sl * bs * h
+        src = self.pos_encoder(src) # sl * bs * h
         output = self.transformer_encoder(src, src_mask) # sl * bs * h
         seq_len, batch_size, d_latent = output.shape
-        output = self.decoder(output.view(-1, d_latent))
+        output = self.decoder(output.view(-1, d_latent)) # flatten sl*bs dims to apply decoder Linera model
         if apply_softmax:
             output = torch.softmax(output, dim=1)
-        return output.view(seq_len, batch_size, self.ntoken)
+        return output.view(seq_len, batch_size, self.ntoken).transpose(0,1)

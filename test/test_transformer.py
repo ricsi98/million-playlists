@@ -23,8 +23,8 @@ def test_2():
     x = torch.ones(batch_size, seq_len, dtype=torch.long)
     y = tf(x, apply_softmax=True)
 
-    assert y.shape == (seq_len, batch_size, n_items)
-    assert torch.allclose(torch.ones(batch_size * seq_len), y.view(-1, n_items).sum(dim=1))
+    assert y.shape == (batch_size, seq_len, n_items)
+    assert torch.allclose(torch.ones(batch_size * seq_len), y.sum(dim=2).view(-1))
 
 
 
@@ -46,7 +46,7 @@ def test_transformer_model():
     # Forward pass test
     src = torch.randint(ntoken, (batch_size, seq_len))
     out = model(src)
-    assert out.shape == (seq_len, batch_size, ntoken), f"Expected output shape {(seq_len, batch_size, ntoken)}, but got {out.shape}"
+    assert out.shape == (batch_size, seq_len, ntoken), f"Expected output shape {(batch_size, seq_len, ntoken)}, but got {out.shape}"
 
     # Test with src_mask
     src_mask = (torch.triu(torch.ones(seq_len, seq_len)) == 0).float().masked_fill_(torch.triu(torch.ones(seq_len, seq_len)) == 0, float('-inf'))
