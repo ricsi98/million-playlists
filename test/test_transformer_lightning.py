@@ -8,13 +8,12 @@ from src.models.transformer.train import MaskedLanguageModel
 class DummyDataset(Dataset):
     def __init__(self, num_samples, seq_len, vocab_size):
         self.samples = torch.randint(vocab_size, (num_samples, seq_len))
-        self.pad_masks = torch.ones(num_samples, seq_len, dtype=torch.bool)
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, index):
-        return self.samples[index], self.pad_masks[index]
+        return self.samples[index]
 
 def test_masked_language_model_forward():
     seq_len, batch_size, ntoken = 10, 3, 20
@@ -22,9 +21,9 @@ def test_masked_language_model_forward():
     model = TransformerModel(embeddings, nhead=4, d_hid=512, nlayers=2)
     lightning_model = MaskedLanguageModel(model, mask_token_id=2, mask_prob=0.15)
 
-    src = torch.randint(ntoken, (batch_size, seq_len))
+    src = torch.randint(ntoken, (seq_len, batch_size))
     out = lightning_model(src)
-    assert out.shape == (batch_size, seq_len, ntoken), f"Expected output shape {(batch_size, seq_len, ntoken)}, but got {out.shape}"
+    assert out.shape == (seq_len, batch_size, ntoken), f"Expected output shape {(batch_size, seq_len, ntoken)}, but got {out.shape}"
 
 def test_masked_language_model_training_step():
     seq_len, batch_size, ntoken = 10, 3, 20
@@ -33,8 +32,7 @@ def test_masked_language_model_training_step():
     lightning_model = MaskedLanguageModel(model, mask_token_id=2, mask_prob=0.15)
 
     src = torch.randint(ntoken, (batch_size, seq_len))
-    pad_mask = torch.ones(batch_size, seq_len, dtype=torch.bool)
-    batch = (src, pad_mask)
+    batch = src
     loss = lightning_model.training_step(batch, 0)
     assert isinstance(loss, torch.Tensor), f"Expected a tensor, but got {type(loss)}"
 
@@ -45,8 +43,7 @@ def test_masked_language_model_validation_step():
     lightning_model = MaskedLanguageModel(model, mask_token_id=2, mask_prob=0.15)
 
     src = torch.randint(ntoken, (batch_size, seq_len))
-    pad_mask = torch.ones(batch_size, seq_len, dtype=torch.bool)
-    batch = (src, pad_mask)
+    batch = src
     lightning_model.validation_step(batch, 0)
 
 def test_masked_language_model_create_combined_mask():

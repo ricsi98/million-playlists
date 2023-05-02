@@ -37,6 +37,11 @@ def add_subsequent_mask(src, mask):
     return combined_mask
 
 
+def generate_square_subsequent_mask(sz: int):
+    """Generates an upper-triangular matrix of ``-inf``, with zeros on ``diag``."""
+    return torch.triu(torch.ones(sz, sz) * float('-inf'), diagonal=1)
+
+
 class MaskedLanguageModel(LightningModule):
 
     def __init__(self, model, mask_token_id, mask_prob, lr=3e-5):
@@ -51,31 +56,35 @@ class MaskedLanguageModel(LightningModule):
 
 
     def training_step(self, batch, batch_idx):
+        # batch: bs * seq_len
         inputs = batch
-        labels = inputs.clone()
+        inputs = inputs.transpose(0,1)
+        targets = inputs.contiguous()[1:]
 
-        seq_len = inputs.shape[1]
+        seq_len = inputs.shape[0]
         src_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
-        src_key_padding_mask = (inputs == self.mask_token_id).bool()
+        src_key_padding_mask = (inputs == self.mask_token_id).T.bool()
 
         predictions = self(inputs, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
 
-        loss = F.cross_entropy(predictions.contiguous().view(-1, self.model.ntoken), labels.view(-1), ignore_index=-100)
+        loss = F.cross_entropy(predictions[:-1].view(-1, self.model.ntoken), targets.view(-1), ignore_index=-100)
         self.log('train_loss', loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         inputs = batch
-        labels = inputs.clone()
+        inputs = inputs.transpose(0,1)
+        targets = inputs.contiguous()[1:]
 
-        seq_len = inputs.shape[1]
+        seq_len = inputs.shape[0]
         src_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
-        src_key_padding_mask = (inputs == self.mask_token_id).bool()
+        src_key_padding_mask = (inputs == self.mask_token_id).T.bool()
 
         predictions = self(inputs, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
-        
-        loss = F.cross_entropy(predictions.contiguous().view(-1, self.model.ntoken), labels.view(-1), ignore_index=-100)
+
+        loss = F.cross_entropy(predictions[:-1].view(-1, self.model.ntoken), targets.view(-1), ignore_index=-100)
         self.log('val_loss', loss, prog_bar=True)
+
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)

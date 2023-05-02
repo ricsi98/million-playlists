@@ -20,10 +20,10 @@ def test_2():
     embedding_dim = 8
     n_items = 60
     tf = TransformerModel(torch.zeros(n_items, embedding_dim), nhead=1, d_hid=16, nlayers=1, dropout=0)
-    x = torch.ones(batch_size, seq_len, dtype=torch.long)
+    x = torch.ones(seq_len, batch_size, dtype=torch.long)
     y = tf(x, apply_softmax=True)
 
-    assert y.shape == (batch_size, seq_len, n_items)
+    assert y.shape == (seq_len, batch_size, n_items)
     assert torch.allclose(torch.ones(batch_size * seq_len), y.sum(dim=2).view(-1))
 
 
@@ -44,9 +44,9 @@ def test_transformer_model():
     model = TransformerModel(embeddings, nhead=4, d_hid=512, nlayers=2)
     
     # Forward pass test
-    src = torch.randint(ntoken, (batch_size, seq_len))
+    src = torch.randint(ntoken, (seq_len, batch_size))
     out = model(src)
-    assert out.shape == (batch_size, seq_len, ntoken), f"Expected output shape {(batch_size, seq_len, ntoken)}, but got {out.shape}"
+    assert out.shape == (seq_len, batch_size, ntoken), f"Expected output shape {(seq_len, batch_size, ntoken)}, but got {out.shape}"
 
     # Test with src_mask
     src_mask = (torch.triu(torch.ones(seq_len, seq_len)) == 0).float().masked_fill_(torch.triu(torch.ones(seq_len, seq_len)) == 0, float('-inf'))
