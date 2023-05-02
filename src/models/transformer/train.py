@@ -5,38 +5,6 @@ from lightning import LightningModule
 import logging
 
 
-class MaskedLanguageModelDataset(Dataset):
-    # Implement your dataset class to provide tokenized sequences
-    ...
-
-
-def mask_tokens(inputs, mask_token_id, mask_prob):
-    """
-    Prepare masked tokens inputs/labels for masked language modeling: randomly masks some of the tokens
-    from the inputs to train the model to predict those tokens.
-    """
-    labels = inputs.clone()
-    mask = torch.full(labels.shape, False, dtype=torch.bool)
-
-    for i in range(inputs.size(0)):
-        mask[i] = torch.bernoulli(torch.full(labels[i].shape, mask_prob)).bool()
-        labels[i] = labels[i].masked_fill(mask[i], -100)
-        inputs[i] = inputs[i].masked_fill(mask[i], mask_token_id)
-
-    return inputs, labels
-
-
-def add_subsequent_mask(src, mask):
-    """1 in mask means we want to cover that"""
-    seq_len = src.size(1)
-    mask = mask.clone().masked_fill_(mask == 1, float('-inf'))
-    subsequent_mask = (torch.triu(torch.ones(seq_len, seq_len)) == 0).float().masked_fill_(torch.triu(torch.ones(seq_len, seq_len)) == 0, float('-inf')).T
-    logging.warning("HELO SUBSEQUENT MERET" + str(subsequent_mask.shape))
-    combined_mask = subsequent_mask.unsqueeze(0) + mask.unsqueeze(1).unsqueeze(2)
-    logging.warning("HELO COMBINED MERET" + str(combined_mask.shape))
-    return combined_mask
-
-
 def generate_square_subsequent_mask(sz: int):
     """Generates an upper-triangular matrix of ``-inf``, with zeros on ``diag``."""
     return torch.triu(torch.ones(sz, sz) * float('-inf'), diagonal=1)
@@ -69,6 +37,7 @@ class MaskedLanguageModel(LightningModule):
 
         loss = F.cross_entropy(predictions[:-1].view(-1, self.model.ntoken), targets.view(-1), ignore_index=-100)
         self.log('train_loss', loss, prog_bar=True)
+        print(loss.item())
         return loss
 
     def validation_step(self, batch, batch_idx):
