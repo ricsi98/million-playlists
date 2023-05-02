@@ -41,7 +41,7 @@ def _build_model(args):
         dropout=args.pdropout,
         d_hid=args.dhidden
     )
-    m = MaskedLanguageModel(transformer, 100, 0)
+    m = MaskedLanguageModel(transformer, PAD_TOKEN)
     return m, wv
 
 
