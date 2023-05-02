@@ -12,9 +12,10 @@ def generate_square_subsequent_mask(sz: int):
 
 class MaskedLanguageModel(LightningModule):
 
-    def __init__(self, model, pad_token_id, lr=3e-5):
+    def __init__(self, model, pad_token_id, lr=3e-5, device="cpu"):
         super().__init__()
-        self.model = model
+        self.dev = device
+        self.model = model.to(self.dev)
         self.pad_token_id = pad_token_id
         self.lr = lr
 
@@ -31,14 +32,14 @@ class MaskedLanguageModel(LightningModule):
         # batch: bs * seq_len
         inputs = self._filter_out_too_shorts(batch)
         assert inputs.shape[0] > 0, "Wrong batch (no sequence with more than 1 valid items) check _filter_out_too_shorts"
-        print(inputs.shape[0])
-        inputs = inputs.transpose(0,1)
+        
+        inputs = inputs.transpose(0,1).to(self.dev)
         targets = inputs.contiguous()[1:]
         inputs = inputs[:-1]
         
         seq_len = inputs.shape[0]
-        src_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
-        src_key_padding_mask = (inputs == self.pad_token_id).T.bool()
+        src_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool().to(self.dev)
+        src_key_padding_mask = (inputs == self.pad_token_id).T.bool().to(self.dev)
         
         predictions = self(inputs, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
 
