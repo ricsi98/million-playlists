@@ -19,7 +19,7 @@ def test_masked_language_model_forward():
     seq_len, batch_size, ntoken = 10, 3, 20
     embeddings = torch.randn(ntoken, 300)
     model = TransformerModel(embeddings, nhead=4, d_hid=512, nlayers=2)
-    lightning_model = MaskedLanguageModel(model, mask_token_id=2, mask_prob=0.15)
+    lightning_model = MaskedLanguageModel(model, pad_token_id=2)
 
     src = torch.randint(ntoken, (seq_len, batch_size))
     out = lightning_model(src)
@@ -29,7 +29,7 @@ def test_masked_language_model_training_step():
     seq_len, batch_size, ntoken = 10, 3, 20
     embeddings = torch.randn(ntoken, 300)
     model = TransformerModel(embeddings, nhead=4, d_hid=512, nlayers=2)
-    lightning_model = MaskedLanguageModel(model, mask_token_id=2, mask_prob=0.15)
+    lightning_model = MaskedLanguageModel(model, pad_token_id=2)
 
     src = torch.randint(ntoken, (batch_size, seq_len))
     batch = src
@@ -40,7 +40,7 @@ def test_masked_language_model_validation_step():
     seq_len, batch_size, ntoken = 10, 3, 20
     embeddings = torch.randn(ntoken, 300)
     model = TransformerModel(embeddings, nhead=4, d_hid=512, nlayers=2)
-    lightning_model = MaskedLanguageModel(model, mask_token_id=2, mask_prob=0.15)
+    lightning_model = MaskedLanguageModel(model, pad_token_id=2)
 
     src = torch.randint(ntoken, (batch_size, seq_len))
     batch = src
@@ -50,7 +50,7 @@ def test_masked_language_model_create_combined_mask():
     seq_len, batch_size, ntoken = 10, 3, 20
     embeddings = torch.randn(ntoken, 300)
     model = TransformerModel(embeddings, nhead=4, d_hid=512, nlayers=2)
-    lightning_model = MaskedLanguageModel(model, mask_token_id=2, mask_prob=0.15)
+    lightning_model = MaskedLanguageModel(model, pad_token_id=2)
 
     src = torch.randint(ntoken, (batch_size, seq_len))
     pad_mask = torch.ones(batch_size, seq_len, dtype=torch.bool)
