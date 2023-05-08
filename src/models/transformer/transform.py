@@ -35,6 +35,19 @@ class TrackURI2Idx:
         return [self.uri2idx[xi] + self.offset for xi in x]
     
     
+class SkipGram:
+    
+    def __init__(self, window):
+        self.window = window
+        
+    def _n_samples(self, l):
+        rectangle = max(0, l - 2 * self.window)
+        #triangle = min(l 
+        
+    def __call__(self, x):
+        return [x[i-self.window:i+self.window] for i in range(len(x))]
+    
+    
 class ToLongTensor:
     
     def __call__(self, x):
