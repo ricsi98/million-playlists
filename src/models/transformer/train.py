@@ -30,7 +30,7 @@ class MaskedLanguageModel(LightningModule):
     def _src_mask(self, seq_len):
         if not hasattr(self, "__src_mask"):
             self.__src_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool().to(self.dev)
-        return self._src_mask[:seq_len, :seq_len]
+        return self.__src_mask[:seq_len, :seq_len]
 
     def training_step(self, batch, batch_idx):
         # batch: bs * seq_len
