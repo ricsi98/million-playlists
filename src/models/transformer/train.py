@@ -27,6 +27,10 @@ class MaskedLanguageModel(LightningModule):
         mask = (batch != self.pad_token_id).sum(dim=1) > 1
         return batch[mask]
 
+    def _src_mask(self, seq_len):
+        if not hasattr(self, "__src_mask"):
+            self.__src_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool().to(self.dev)
+        return self._src_mask[:seq_len, :seq_len]
 
     def training_step(self, batch, batch_idx):
         # batch: bs * seq_len
@@ -38,7 +42,7 @@ class MaskedLanguageModel(LightningModule):
         inputs = inputs[:-1]
         
         seq_len = inputs.shape[0]
-        src_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool().to(self.dev)
+        src_mask = self._src_mask(seq_len)
         src_key_padding_mask = (inputs == self.pad_token_id).T.bool().to(self.dev)
         
         predictions = self(inputs, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
