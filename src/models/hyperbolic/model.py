@@ -24,7 +24,8 @@ class ManifoldSkipGram(pl.LightningModule):
         return self.sim(va, vb)
 
     def training_step(self, batch, batch_idx):
-        x1, x2, y = batch
+        x, y = batch
+        x1, x2 = x[:, 0], x[:, 1]
         y_ = self(x1, x2)
         loss = self.loss_fn(y_, y)
         self.log("train_loss", loss.item(), prog_bar=True, on_epoch=True)
@@ -39,7 +40,7 @@ class ManifoldSkipGram(pl.LightningModule):
                 opt = geoopt.optim.RiemannianAdam
             else:
                 raise NotImplementedError()
-            kwargs = {k:v for k,v in self.opt_kwargs.items() if k is not "algo"}
+            kwargs = {k:v for k,v in self.opt_kwargs.items() if k != "algo"}
         else:
             opt = geoopt.optim.RiemannianSGD
             kwargs = self.opt_kwargs
