@@ -9,8 +9,9 @@ class SGNSLoss(nn.Module):
         self.reduction = reduction
         
     def forward(self, y_, y):
-        y.masked_fill_(y == 0, -1)
-        loss = -torch.log(torch.sigmoid(y * y_))
+        #y.masked_fill_(y == 0, -1)
+        #loss = -torch.log(torch.sigmoid(y * y_))
+        loss = -(y * torch.log(torch.sigmoid(-y_)) + (1-y) * torch.log(torch.sigmoid(y_))).mean()
         if self.reduction is None:
             return loss
         elif self.reduction == "mean":

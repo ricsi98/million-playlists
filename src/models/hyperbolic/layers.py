@@ -55,4 +55,4 @@ class ManifoldDistance(nn.Module):
         self._manifold = manifold
 
     def forward(self, a, b):
-        return self._manifold.dist(a, b)
+        return self._manifold.dist2(a, b)
