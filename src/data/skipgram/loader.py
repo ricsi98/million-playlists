@@ -1,12 +1,13 @@
 import os
 import json
+from typing import Iterator, Optional, Sized
 import h5py
 import torch
 import random
 import logging
 import numpy as np
 from . import constants
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Sampler
 
 
 class H5Dataset(Dataset):
@@ -57,3 +58,46 @@ class H5Dataset(Dataset):
 
     def __getitem__(self, index):
         return self._get(index)
+    
+
+
+class RandomOrderSampler(Sampler[int]):
+
+    def __init__(self, from_: int, to_: int, generator=None) -> None:
+        assert to_ > from_
+        self.from_ = from_
+        self.to_ = to_
+        self.n_ = to_ - from_
+        self.generator = generator
+
+    def __len__(self):
+        return self.n_
+    
+    def __iter__(self):
+        for i in torch.randperm(self.n_, generator=self.generator):
+            yield self.from_ + i
+    
+
+class CustomH5Sampler(Sampler):
+    """Sample indices within loaded chunk then skip to next chunk"""
+
+    def __init__(self, data_source, generator=None) -> None:
+        super().__init__(data_source)
+        assert isinstance(data_source, H5Dataset)
+        self.ds = data_source
+        carry = 1 if len(self.ds) % self.ds.buffer_size > 0 else 0
+        self.n_chunks = len(self.ds) // self.ds.buffer_size + carry
+        self.generator = generator
+
+    def __len__(self):
+        return len(self.ds)
+    
+    def __iter__(self):
+        chunk_sampler = RandomOrderSampler(0, self.n_chunks, self.generator)
+        for chunk_index in chunk_sampler:
+            chunk_index = chunk_index.item()
+            start_ = chunk_index * self.ds.buffer_size
+            end_ = min((chunk_index + 1) * self.ds.buffer_size, len(self.ds))
+            sampler = RandomOrderSampler(start_, end_, self.generator)
+            for i in sampler:
+                yield i
