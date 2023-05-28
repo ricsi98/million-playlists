@@ -6,6 +6,7 @@ from functools import reduce
 
 from ..utils import PlaylistIterator
 from . import transform as T
+from . import constants
 
 
 DATASET_NAME = "data"
@@ -55,12 +56,12 @@ def convert(save_path: str, playlists: PlaylistIterator, k: int = 0, dtype=np.in
     song2idx = {s:i for i,s in idx2song.items()}
     
     # write index mapping
-    with open(os.path.join(save_path, "idx2song.json"), "w") as f:
+    with open(os.path.join(save_path, constants.FNAME_IDX2SONG), "w") as f:
         json.dump(idx2song, f)
 
     # write frequencies file
     c_ = {song2idx[song]: freq for song,freq in c.items()}
-    with open(os.path.join(save_path, "frequencies.json"), "w") as f:
+    with open(os.path.join(save_path, constants.FNAME_FREQUENCIES), "w") as f:
         json.dump(c_, f,)
 
     # write h5 file
@@ -69,7 +70,7 @@ def convert(save_path: str, playlists: PlaylistIterator, k: int = 0, dtype=np.in
         T.TrackURI2Idx(song2idx)
     )
     sg = T.SkipGram(3)
-    with h5py.File(os.path.join(save_path, "skipgrams.h5"), "w") as f:
+    with h5py.File(os.path.join(save_path, constants.FNAME_SKIPGRAMS), "w") as f:
         f.create_dataset(DATASET_NAME, (200, 2), maxshape=(None, 2))
         bw = BufferedH5Writer(f, DATASET_NAME, 50000)
         for pl in playlists:

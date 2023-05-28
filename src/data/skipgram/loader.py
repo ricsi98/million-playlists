@@ -5,6 +5,7 @@ import torch
 import random
 import logging
 import numpy as np
+from . import constants
 from torch.utils.data import Dataset
 
 
@@ -23,7 +24,7 @@ class H5Dataset(Dataset):
         }
         
     def _init_negative_distribution(self, path: str, alpha: float):
-        with open(os.path.join(path, "frequencies.json"), "r") as f:
+        with open(os.path.join(path, constants.FNAME_FREQUENCIES), "r") as f:
             freqs = json.load(f)
             weights = np.array(list(freqs.values())) ** alpha
             weights /= np.sum(weights)
@@ -34,7 +35,7 @@ class H5Dataset(Dataset):
         chunk_index = index // self.buffer_size
         if chunk_index != self.__data["chunk_index"]:
             logging.info(f"Loading chunk {chunk_index}")
-            path = os.path.join(self.path, "skipgrams.h5")
+            path = os.path.join(self.path, constants.FNAME_SKIPGRAMS)
             with h5py.File(path, "r") as f:
                 start_ = chunk_index * self.buffer_size 
                 end_ = (chunk_index + 1) * self.buffer_size
@@ -46,7 +47,7 @@ class H5Dataset(Dataset):
 
     def __len__(self):
         if not hasattr(self, "__h5_size"):
-            path = os.path.join(self.path, "skipgrams.h5")
+            path = os.path.join(self.path, constants.FNAME_SKIPGRAMS)
             with h5py.File(path, "r") as f:
                 self.__h5_size = len(f["data"])
         return self.__h5_size
