@@ -63,11 +63,11 @@ def convert(
         c = {song: freq for song,freq in c.items() if freq >= k}
     idx2song = {i:s for i,s in enumerate(c.keys())}
     song2idx = {s:i for i,s in idx2song.items()}
+    print(f"{len(idx2song)} songs kept")
     
     # write index mapping
     with open(os.path.join(save_path, constants.FNAME_IDX2SONG), "w") as f:
         json.dump(idx2song, f)
-    print(f"{len(idx2song)} songs kept")
 
     # write frequencies file
     c_ = {song2idx[song]: freq for song,freq in c.items()}
@@ -100,4 +100,4 @@ files = os.listdir(base_path)
 files = [os.path.join(base_path, f) for f in files]
 print(files)
 pl = PlaylistIterator(files)
-print(convert("./data/kcore", pl, 30))
+print(convert("./data/kcore", pl, 5, 800))

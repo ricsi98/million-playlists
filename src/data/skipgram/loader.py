@@ -1,5 +1,6 @@
 import os
 import json
+import math
 import h5py
 import torch
 import random
@@ -11,17 +12,47 @@ from torch.utils.data import Dataset, Sampler, DataLoader
 
 class H5Dataset(Dataset):
 
-    DEFAULT_BUFFER_SIZE = 5_000_000
+    DEFAULT_BATCH_SIZE = 512
+    DEFAULT_BUFFER_SIZE = 512 * 4096 * 4
+    
 
-    def __init__(self, path: str, alpha: float = 0.75, n_negatives: int = 1, buffer_size: int = DEFAULT_BUFFER_SIZE) -> None:
+    def __init__(self, 
+                 path: str, 
+                 alpha: float = 0.75, 
+                 n_negatives: int = 1, 
+                 buffer_size: int = DEFAULT_BUFFER_SIZE, 
+                 batch_size: int = DEFAULT_BATCH_SIZE
+        ):
         self.path = path
         self.n_negatives = n_negatives
         self.buffer_size = buffer_size
+        self.batch_size = batch_size
         self._init_negative_distribution(path, alpha)
         self.__data = {
             "chunk_index": -1,
+            "cap": buffer_size,
             "data": torch.zeros((buffer_size, 2), dtype=torch.long)
         }
+        self.x = []
+        
+    @property
+    def _batch_per_chunk(self):
+        return math.ceil(self.buffer_size / self.batch_size)
+    
+    @property
+    def _n_chunks(self):
+        if not hasattr(self, "__n_chunks"):
+            path = os.path.join(self.path, constants.FNAME_SKIPGRAMS)
+            with h5py.File(path, "r") as f:
+                self.__n_chunks = math.ceil(len(f["data"]) / self.buffer_size)
+        return self.__n_chunks 
+    
+    def __len__(self):
+        if not hasattr(self, "__n_batches"):
+            path = os.path.join(self.path, constants.FNAME_SKIPGRAMS)
+            with h5py.File(path, "r") as f:
+                self.__n_batches = math.ceil(len(f["data"]) / self.batch_size)
+        return self.__n_batches
         
     def _init_negative_distribution(self, path: str, alpha: float):
         with open(os.path.join(path, constants.FNAME_FREQUENCIES), "r") as f:
@@ -31,8 +62,9 @@ class H5Dataset(Dataset):
             self.cum_weights = np.cumsum(weights)
             self.ids = np.arange(len(weights), dtype=np.int64)
 
-    def _get(self, index):
-        chunk_index = index // self.buffer_size
+    def _get(self, batch_index):
+        index_start = batch_index * self.batch_size
+        chunk_index = index_start // self.buffer_size
         if chunk_index != self.__data["chunk_index"]:
             logging.info(f"Loading chunk {chunk_index}")
             path = os.path.join(self.path, constants.FNAME_SKIPGRAMS)
@@ -40,27 +72,24 @@ class H5Dataset(Dataset):
                 start_ = chunk_index * self.buffer_size 
                 end_ = (chunk_index + 1) * self.buffer_size
                 assert start_ < len(f["data"]), "index out of bounds"
-                self.__data["data"][:] = torch.tensor(f["data"][start_:end_])
+                length = len(f["data"]) - start_
+                f["data"].read_direct(self.__data["data"][:length].numpy(), source_sel=np.s_[start_:end_])
                 self.__data["chunk_index"] = chunk_index
-        offset = index - chunk_index * self.buffer_size
-        return self.__data["data"][offset]
-
-    def __len__(self):
-        if not hasattr(self, "__h5_size"):
-            path = os.path.join(self.path, constants.FNAME_SKIPGRAMS)
-            with h5py.File(path, "r") as f:
-                self.__h5_size = len(f["data"])
-        return self.__h5_size
+                self.__data["cap"] = length
+        offset = index_start - chunk_index * self.buffer_size
+        return self.__data["data"][min(self.__data["cap"], offset):min(self.__data["cap"], offset+self.batch_size)]    
 
     def _negatives(self, k):
         return np.array(random.choices(self.ids, cum_weights=self.cum_weights, k=k))
 
     def __getitem__(self, index):
-        pos = self._get(index)
-        neg = torch.tensor([pos[0].item(), self._negatives(self.n_negatives)[0]])
-        x = torch.stack((pos, neg), dim=0)
-        y = torch.tensor([1] + [0] * self.n_negatives)
-        return x, y
+        #pos = self._get(index)
+        #neg = torch.tensor([pos[0].item(), self._negatives(self.n_negatives)[0]])
+        #x = torch.stack((pos, neg), dim=0)
+        #y = torch.tensor([1] + [0] * self.n_negatives)
+        #return x, y
+        self.x.append(index)
+        return self._get(index)
     
 
 
@@ -88,32 +117,32 @@ class CustomH5Sampler(Sampler):
         super().__init__(data_source)
         assert isinstance(data_source, H5Dataset)
         self.ds = data_source
-        carry = 1 if len(self.ds) % self.ds.buffer_size > 0 else 0
-        self.n_chunks = len(self.ds) // self.ds.buffer_size + carry
         self.generator = generator
 
     def __len__(self):
         return len(self.ds)
     
     def __iter__(self):
-        chunk_sampler = RandomOrderSampler(0, self.n_chunks, self.generator)
+        chunk_sampler = RandomOrderSampler(0, self.ds._n_chunks, self.generator)
         for chunk_index in chunk_sampler:
             chunk_index = chunk_index.item()
-            start_ = chunk_index * self.ds.buffer_size
-            end_ = min((chunk_index + 1) * self.ds.buffer_size, len(self.ds))
+            start_ = math.floor(chunk_index * self.ds.buffer_size / self.ds.batch_size)
+            end_ = min(start_ + self.ds._batch_per_chunk, len(self.ds))
             sampler = RandomOrderSampler(start_, end_, self.generator)
             for i in sampler:
-                yield i
+                yield i.item()
+
 
 def _collate_fn(sample):
-    x, y = list(zip(*sample))
-    return torch.cat(x, dim=0), torch.cat(y, dim=0)
+    return torch.cat(sample, dim=0)
+
 
 def get_data_loader(
         path: str, 
         alpha: float = 0.75, 
         n_negatives: int = 1, 
         buffer_size: int = H5Dataset.DEFAULT_BUFFER_SIZE,
+        dataset_batch_size: int = H5Dataset.DEFAULT_BATCH_SIZE,
         **loader_kwargs
     ):
     ds = H5Dataset(
@@ -125,7 +154,7 @@ def get_data_loader(
     sampler = CustomH5Sampler(ds)
     return DataLoader(
         dataset=ds,
-        sampler=sampler, 
-        collate_fn=_collate_fn, 
+        sampler=sampler,
+        collate_fn=_collate_fn,
         **loader_kwargs
-    )
+    ), ds
