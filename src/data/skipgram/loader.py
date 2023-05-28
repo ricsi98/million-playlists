@@ -73,7 +73,7 @@ class H5Dataset(Dataset):
                 start_ = chunk_index * self.buffer_size 
                 end_ = (chunk_index + 1) * self.buffer_size
                 assert start_ < len(f["data"]), "index out of bounds"
-                length = len(f["data"]) - start_
+                length = min(self.buffer_size, len(f["data"]) - start_)
                 buffer = torch.empty((length, 2))
                 f["data"].read_direct(buffer.numpy(), source_sel=np.s_[start_:end_])
                 self.__data["data"][:length] = buffer
@@ -90,7 +90,7 @@ class H5Dataset(Dataset):
         neg = self._negatives(len(pos) * self.n_negatives)
         neg = torch.stack((pos[:, 0], neg), dim=1).to(pos)
         x = torch.cat((pos, neg), dim=0)
-        y = torch.tensor([1] + [0] * self.n_negatives)
+        y = torch.tensor([1] * len(pos) + [0] * len(neg))
         return x, y
     
 
@@ -136,7 +136,8 @@ class CustomH5Sampler(Sampler):
 
 
 def _collate_fn(sample):
-    return torch.cat(sample, dim=0)
+    x, y = list(zip(*sample))
+    return torch.cat(x, dim=0), torch.cat(y, dim=0)
 
 
 def get_data_loader(
@@ -151,7 +152,8 @@ def get_data_loader(
         path=path,
         alpha=alpha,
         n_negatives=n_negatives,
-        buffer_size=buffer_size
+        buffer_size=buffer_size,
+        batch_size=dataset_batch_size
     )
     sampler = CustomH5Sampler(ds)
     return DataLoader(
