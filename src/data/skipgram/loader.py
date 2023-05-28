@@ -19,7 +19,7 @@ class H5Dataset(Dataset):
         self._init_negative_distribution(path, alpha)
         self.__data = {
             "chunk_index": -1,
-            "data": torch.zeros((buffer_size, 2))
+            "data": torch.zeros((buffer_size, 2), dtype=torch.long)
         }
         
     def _init_negative_distribution(self, path: str, alpha: float):
@@ -34,19 +34,19 @@ class H5Dataset(Dataset):
         chunk_index = index // self.buffer_size
         if chunk_index != self.__data["chunk_index"]:
             logging.info(f"Loading chunk {chunk_index}")
-            path = os.path.join(self.path, "skipgrams.json")
+            path = os.path.join(self.path, "skipgrams.h5")
             with h5py.File(path, "r") as f:
                 start_ = chunk_index * self.buffer_size 
                 end_ = (chunk_index + 1) * self.buffer_size
                 assert start_ < len(f["data"]), "index out of bounds"
-                self.__data["data"][:] = f["data"][start_:end_]
+                self.__data["data"][:] = torch.tensor(f["data"][start_:end_])
                 self.__data["chunk_index"] = chunk_index
         offset = index - chunk_index * self.buffer_size
         return self.__data["data"][offset]
 
     def __len__(self):
         if not hasattr(self, "__h5_size"):
-            path = os.path.join(self.path, "skipgrams.json")
+            path = os.path.join(self.path, "skipgrams.h5")
             with h5py.File(path, "r") as f:
                 self.__h5_size = len(f["data"])
         return self.__h5_size
