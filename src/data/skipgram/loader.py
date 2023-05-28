@@ -21,19 +21,20 @@ class H5Dataset(Dataset):
                  alpha: float = 0.75, 
                  n_negatives: int = 1, 
                  buffer_size: int = DEFAULT_BUFFER_SIZE, 
-                 batch_size: int = DEFAULT_BATCH_SIZE
+                 batch_size: int = DEFAULT_BATCH_SIZE,
+                 device: str = "cpu"
         ):
         self.path = path
         self.n_negatives = n_negatives
         self.buffer_size = buffer_size
         self.batch_size = batch_size
+        self.device = device
         self._init_negative_distribution(path, alpha)
         self.__data = {
             "chunk_index": -1,
             "cap": buffer_size,
-            "data": torch.zeros((buffer_size, 2), dtype=torch.long)
+            "data": torch.zeros((buffer_size, 2), dtype=torch.long).to(self.device)
         }
-        self.x = []
         
     @property
     def _batch_per_chunk(self):
@@ -73,23 +74,24 @@ class H5Dataset(Dataset):
                 end_ = (chunk_index + 1) * self.buffer_size
                 assert start_ < len(f["data"]), "index out of bounds"
                 length = len(f["data"]) - start_
-                f["data"].read_direct(self.__data["data"][:length].numpy(), source_sel=np.s_[start_:end_])
+                buffer = torch.empty((length, 2))
+                f["data"].read_direct(buffer.numpy(), source_sel=np.s_[start_:end_])
+                self.__data["data"][:length] = buffer
                 self.__data["chunk_index"] = chunk_index
                 self.__data["cap"] = length
         offset = index_start - chunk_index * self.buffer_size
         return self.__data["data"][min(self.__data["cap"], offset):min(self.__data["cap"], offset+self.batch_size)]    
 
     def _negatives(self, k):
-        return np.array(random.choices(self.ids, cum_weights=self.cum_weights, k=k))
+        return torch.tensor(random.choices(self.ids, cum_weights=self.cum_weights, k=k))
 
     def __getitem__(self, index):
-        #pos = self._get(index)
-        #neg = torch.tensor([pos[0].item(), self._negatives(self.n_negatives)[0]])
-        #x = torch.stack((pos, neg), dim=0)
-        #y = torch.tensor([1] + [0] * self.n_negatives)
-        #return x, y
-        self.x.append(index)
-        return self._get(index)
+        pos = self._get(index)
+        neg = self._negatives(len(pos) * self.n_negatives)
+        neg = torch.stack((pos[:, 0], neg), dim=1).to(pos)
+        x = torch.cat((pos, neg), dim=0)
+        y = torch.tensor([1] + [0] * self.n_negatives)
+        return x, y
     
 
 
