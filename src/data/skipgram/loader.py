@@ -1,18 +1,17 @@
 import os
 import json
-from typing import Iterator, Optional, Sized
 import h5py
 import torch
 import random
 import logging
 import numpy as np
 from . import constants
-from torch.utils.data import Dataset, Sampler
+from torch.utils.data import Dataset, Sampler, DataLoader
 
 
 class H5Dataset(Dataset):
 
-    DEFAULT_BUFFER_SIZE = 50_000_000
+    DEFAULT_BUFFER_SIZE = 5_000_000
 
     def __init__(self, path: str, alpha: float = 0.75, n_negatives: int = 1, buffer_size: int = DEFAULT_BUFFER_SIZE) -> None:
         self.path = path
@@ -57,7 +56,11 @@ class H5Dataset(Dataset):
         return np.array(random.choices(self.ids, cum_weights=self.cum_weights, k=k))
 
     def __getitem__(self, index):
-        return self._get(index)
+        pos = self._get(index)
+        neg = torch.tensor([pos[0].item(), self._negatives(self.n_negatives)[0]])
+        x = torch.stack((pos, neg), dim=0)
+        y = torch.tensor([1] + [0] * self.n_negatives)
+        return x, y
     
 
 
@@ -101,3 +104,28 @@ class CustomH5Sampler(Sampler):
             sampler = RandomOrderSampler(start_, end_, self.generator)
             for i in sampler:
                 yield i
+
+def _collate_fn(sample):
+    x, y = list(zip(*sample))
+    return torch.cat(x, dim=0), torch.cat(y, dim=0)
+
+def get_data_loader(
+        path: str, 
+        alpha: float = 0.75, 
+        n_negatives: int = 1, 
+        buffer_size: int = H5Dataset.DEFAULT_BUFFER_SIZE,
+        **loader_kwargs
+    ):
+    ds = H5Dataset(
+        path=path,
+        alpha=alpha,
+        n_negatives=n_negatives,
+        buffer_size=buffer_size
+    )
+    sampler = CustomH5Sampler(ds)
+    return DataLoader(
+        dataset=ds,
+        sampler=sampler, 
+        collate_fn=_collate_fn, 
+        **loader_kwargs
+    )

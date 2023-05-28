@@ -1,6 +1,7 @@
 import json
 import h5py
 import numpy as np
+from tqdm import tqdm
 from collections import Counter
 from functools import reduce
 
@@ -45,10 +46,18 @@ class BufferedH5Writer:
             self._write()
 
 
-def convert(save_path: str, playlists: PlaylistIterator, k: int = 0, dtype=np.int64):
+def convert(
+        save_path: str, 
+        playlists: PlaylistIterator, 
+        window_size: int = 5,
+        k: int = 0, 
+        dtype=np.int64
+    ):
     c = Counter()
+    n_playlists = 0
     for pl in playlists:
         c.update(pl)
+        n_playlists += 1
     c = dict(c)
     if k > 0:
         c = {song: freq for song,freq in c.items() if freq >= k}
@@ -58,6 +67,7 @@ def convert(save_path: str, playlists: PlaylistIterator, k: int = 0, dtype=np.in
     # write index mapping
     with open(os.path.join(save_path, constants.FNAME_IDX2SONG), "w") as f:
         json.dump(idx2song, f)
+    print(f"{len(idx2song)} songs kept")
 
     # write frequencies file
     c_ = {song2idx[song]: freq for song,freq in c.items()}
@@ -69,11 +79,11 @@ def convert(save_path: str, playlists: PlaylistIterator, k: int = 0, dtype=np.in
         T.RemoveUnknownTracks(song2idx.keys()),
         T.TrackURI2Idx(song2idx)
     )
-    sg = T.SkipGram(3)
+    sg = T.SkipGram(window_size)
     with h5py.File(os.path.join(save_path, constants.FNAME_SKIPGRAMS), "w") as f:
         f.create_dataset(DATASET_NAME, (200, 2), maxshape=(None, 2))
         bw = BufferedH5Writer(f, DATASET_NAME, 50000)
-        for pl in playlists:
+        for pl in tqdm(playlists, total=n_playlists):
             pl = transform(pl)
             if len(pl) == 0: continue
             sgrams = sg(pl)
