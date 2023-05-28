@@ -90,7 +90,7 @@ class H5Dataset(Dataset):
         neg = self._negatives(len(pos) * self.n_negatives)
         neg = torch.stack((pos[:, 0], neg), dim=1).to(pos)
         x = torch.cat((pos, neg), dim=0)
-        y = torch.tensor([1] * len(pos) + [0] * len(neg))
+        y = torch.tensor([1] * len(pos) + [0] * len(neg)).to(x)
         return x, y
     
 
@@ -146,6 +146,7 @@ def get_data_loader(
         n_negatives: int = 1, 
         buffer_size: int = H5Dataset.DEFAULT_BUFFER_SIZE,
         dataset_batch_size: int = H5Dataset.DEFAULT_BATCH_SIZE,
+        device: str = "cpu",
         **loader_kwargs
     ):
     ds = H5Dataset(
@@ -153,7 +154,8 @@ def get_data_loader(
         alpha=alpha,
         n_negatives=n_negatives,
         buffer_size=buffer_size,
-        batch_size=dataset_batch_size
+        batch_size=dataset_batch_size,
+        device=device
     )
     sampler = CustomH5Sampler(ds)
     return DataLoader(
