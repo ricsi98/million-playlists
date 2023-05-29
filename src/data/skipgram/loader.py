@@ -87,8 +87,9 @@ class H5Dataset(Dataset):
 
     def __getitem__(self, index):
         pos = self._get(index)
-        neg = self._negatives(len(pos) * self.n_negatives)
-        neg = torch.stack((pos[:, 0], neg), dim=1).to(pos)
+        # TODO: move neg to gpu on collate
+        neg = self._negatives(len(pos) * self.n_negatives).to(pos)
+        neg = torch.stack((pos[:, 0], neg), dim=1)
         x = torch.cat((pos, neg), dim=0)
         y = torch.tensor([1] * len(pos) + [0] * len(neg)).to(x)
         return x, y
