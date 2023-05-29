@@ -44,6 +44,8 @@ class ManifoldDotProduct(nn.Module):
         self._manifold = manifold
         
     def forward(self, a, b):
+        if isinstance(self._manifold, geoopt.manifolds.Euclidean):
+            return (a*b).sum(dim=-1)
         x0 = torch.zeros(a.shape[-1]).to(a.device)
         return self._manifold.inner(x0, a, b)
     
