@@ -35,16 +35,6 @@ print("Number of songs to be fetched", len(songs))
 
 t = Auth()
 
-# get_several_tracks
-# tracks.album.release_data
-# tracks.album.genres
-# tracks.duration_ms
-# tracks.name
-# tracks.id
-
-# get_tracks_audio_features
-#...
-
 def safe_dict_field(data, *keys):
     for k in keys:
         if not isinstance(data, dict) or k not in data:

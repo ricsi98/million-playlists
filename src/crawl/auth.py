@@ -19,7 +19,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         query = urlparse(self.path).query
         query_components = parse_qs(query)
-        code = query_components.get('code', [''])[0]  # Get 'code' parameter, default to '' if not present
+        code = query_components.get('code', ['Error: No code received'])[0] 
         self.server.code = code
         response = f'Received code: {code}'
         self.send_response(200)
