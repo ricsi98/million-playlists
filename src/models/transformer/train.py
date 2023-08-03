@@ -1,50 +1,83 @@
+import os
+from argparse import ArgumentParser
+
+import lightning as pl
 import torch
-import torch.nn.functional as F
-from torch.utils.data import Dataset
-from lightning import LightningModule
-import logging
+import numpy as np
+from gensim.models import Word2Vec
+from data.torch import PlaylistDataset
+from model import TransformerModel, MaskedLanguageModel
+import data.stream.transforms as T
 
 
-class MaskedLanguageModel(LightningModule):
+PAD_TOKEN = 0
 
-    def __init__(self, model, pad_token_id, lr=3e-5, device="cpu"):
-        super().__init__()
-        self.dev = device
-        self.model = model.to(self.dev)
-        self.pad_token_id = pad_token_id
-        self.lr = lr
 
-    def forward(self, x, **kwargs):
-        return self.model(x, apply_softmax=False, **kwargs)
+def _build_dataset(args, wv):
+    files = sorted([os.path.join(args.playlists, f) for f in os.listdir(args.playlists)])
+
+    transforms = T.Compose(
+        T.RemoveUnknownTracks(wv.key_to_index.keys()),
+        T.TrackURI2Idx(wv.key_to_index, offset=1),
+        T.PadOrTrim(PAD_TOKEN, args.seqlen),
+        T.ToLongTensor()
+    )
+
+    limit = args.limit if args.limit > 0 else None
+    assert limit is None, f"Currently not supported limit={args.limit, limit}"
+
+    return PlaylistDataset(files, playlist_per_file=args.ppf, transform=transforms)
+
+
+def _build_model(args):
+    wv = Word2Vec.load(args.embeddings).wv
+    dim = wv.vectors.shape[1]
+    embeddings = np.concatenate((np.random.normal(size=(1, dim)), wv.vectors), axis=0)
+    transformer = TransformerModel(
+        embeddings=torch.tensor(embeddings),
+        nhead=args.heads,
+        nlayers=args.layers,
+        dropout=args.pdropout,
+        d_hid=args.dhidden
+    )
+    m = MaskedLanguageModel(transformer, PAD_TOKEN)
+    return m, wv
+
+
+
+
+def main():
+    parser = ArgumentParser()
+    # I/O
+    parser.add_argument("--embeddings", type=str, required=True, help="path to learned embeddings")
+    parser.add_argument("--output", type=str, required=True, help="path where to save model")
+    parser.add_argument("--playlists", type=str, required=True, help="path to playlist files")
+    parser.add_argument("--ppf", type=int, default=50000, help="playlist per file (required for indexing)")
+    parser.add_argument("--seqlen", type=int, default=50, help="playlists are padded/trimmed to seqlen length")
+    parser.add_argument("--limit", type=int, default=-1, help="if specified, only use this many training examples (playlists)")
     
-    def _filter_out_too_shorts(self, batch):
-        # bs * seq_len
-        mask = (batch != self.pad_token_id).sum(dim=1) > 1
-        return batch[mask]
+    # Model
+    parser.add_argument("--positional", type=bool, default=False, help="whether to user positional embeddings")
+    parser.add_argument("--heads", type=int, default=4, help="number of attention heads to user")
+    parser.add_argument("--layers", type=int, default=2, help="number of encoder layers to use")
+    parser.add_argument("--dhidden", type=int, default=64, help="size of hidden layers in transformer encoder")
+    parser.add_argument("--pdropout", type=float, default=.5, help="dropout probability")
 
-    def _src_mask(self, seq_len):
-        if not hasattr(self, "__src_mask"):
-            self.__src_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool().to(self.dev)
-        return self.__src_mask[:seq_len, :seq_len]
+    # Optimizer
+    ...
 
-    def training_step(self, batch, batch_idx):
-        # batch: bs * seq_len
-        inputs = self._filter_out_too_shorts(batch)
-        assert inputs.shape[0] > 0, "Wrong batch (no sequence with more than 1 valid items) check _filter_out_too_shorts"
-        
-        inputs = inputs.transpose(0,1).to(self.dev)
-        targets = inputs.contiguous()[1:]
-        inputs = inputs[:-1]
-        
-        seq_len = inputs.shape[0]
-        src_mask = self._src_mask(seq_len)
-        src_key_padding_mask = (inputs == self.pad_token_id).T.bool().to(self.dev)
-        
-        predictions = self(inputs, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
+    # Training
+    parser.add_argument("--batchsize", type=int, default=256)
 
-        loss = F.cross_entropy(predictions.view(-1, self.model.ntoken), targets.view(-1), ignore_index=self.pad_token_id)
-        self.log('train_loss', loss, prog_bar=True, on_step=True)
-        return loss
+    args = parser.parse_args()
     
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr)
+    model, wv = _build_model(args)
+    dataset = _build_dataset(args, wv)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=args.batchsize, shuffle=False)
+    trainer = pl.Trainer()
+
+    trainer.fit(model, loader)
+
+
+if __name__ == "__main__":
+    main()
