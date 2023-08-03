@@ -4,10 +4,13 @@ import logging
 
 class PlaylistIterator:
 
-    def __init__(self, files):
+    def __init__(self, files, limit=None):
         self.files = files
+        self.limit = limit
 
     def __len__(self):
+        if self.limit is not None:
+            return self.limit
         if not hasattr(self, "__n_samples"):
             for i, _ in enumerate(iter(self)):
                 pass
@@ -15,6 +18,7 @@ class PlaylistIterator:
         return self.__n_samples
 
     def __iter__(self):
+        n = 0
         for file in self.files:
             if file.endswith(".json"):
                 with open(file) as f:
@@ -22,6 +26,9 @@ class PlaylistIterator:
                     slice = json.loads(f.read())
 
                 for plist in slice["playlists"]:
+                    if self.limit is not None and n > self.limit:
+                        return
                     yield plist
+                    n += 1
             else:
                 logging.warning(f"{file} not expected")

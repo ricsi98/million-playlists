@@ -48,22 +48,3 @@ class MaskedLanguageModel(LightningModule):
     
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
-
-"""    def validation_step(self, batch, batch_idx):
-        inputs = self._filter_out_too_shorts(batch)
-        assert inputs.shape[0] > 0, "Wrong batch (no sequence with more than 1 valid items) check _filter_out_too_shorts"
-        print(inputs.shape[0])
-        inputs = inputs.transpose(0,1)
-        targets = inputs.contiguous()[1:]
-        inputs = inputs[:-1]
-        
-        seq_len = inputs.shape[0]
-        src_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
-        src_key_padding_mask = (inputs == self.pad_token_id).T.bool()
-        
-        predictions = self(inputs, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
-
-        loss = F.cross_entropy(predictions.view(-1, self.model.ntoken), targets.view(-1), ignore_index=self.pad_token_id)
-        self.log('val_loss', loss, prog_bar=True, on_step=True)"""
-
-

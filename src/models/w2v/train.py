@@ -1,8 +1,10 @@
-from loader import PlaylistIterator
-from callbacks import LogEpochLossCallback
+#from loader import PlaylistIterator
+from .callbacks import LogEpochLossCallback
 import os
 from argparse import ArgumentParser
 from gensim.models import Word2Vec
+
+from data.stream.iters import PlaylistIterator
 
 
 def main():
@@ -23,7 +25,8 @@ def main():
     assert os.path.isdir(args.output)
 
     limit = args.debug if args.debug > 0 else None
-    loader = PlaylistIterator(args.data, limit)
+    files = [os.path.join(args.data, fname) for fname in os.listdir(args.data)]
+    loader = PlaylistIterator(files, limit)
     logger = LogEpochLossCallback()
 
     model = Word2Vec(
