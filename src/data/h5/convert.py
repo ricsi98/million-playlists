@@ -5,8 +5,8 @@ from tqdm import tqdm
 from collections import Counter
 from functools import reduce
 
-from ..utils import PlaylistIterator
-from . import transform as T
+from ..stream.iters import PlaylistIterator
+from ..stream import transforms as T
 from . import constants
 
 
