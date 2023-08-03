@@ -32,12 +32,11 @@ class TransformerModel(nn.Module):
         super().__init__()
         ntoken, d_model = embeddings.shape
         self.ntoken = ntoken
-        self.model_type = 'Transformer'
-        self.pos_encoder = PositionalEncoding(d_model, dropout)
-        encoder_layers = nn.TransformerEncoderLayer(d_model, nhead, d_hid, dropout)
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, nlayers)
-        self.encoder = nn.Embedding(ntoken, d_model)
         self.d_model = d_model
+        self.pos_encoder = PositionalEncoding(d_model, dropout)
+        encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, d_hid, dropout)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, nlayers)
+        self.encoder = nn.Embedding(ntoken, d_model)
         self.decoder = nn.Linear(d_model, ntoken, bias=embeddings is None)
 
         self.init_weights(embeddings)

@@ -5,11 +5,6 @@ from lightning import LightningModule
 import logging
 
 
-def generate_square_subsequent_mask(sz: int):
-    """Generates an upper-triangular matrix of ``-inf``, with zeros on ``diag``."""
-    return torch.triu(torch.ones(sz, sz) * float('-inf'), diagonal=1)
-
-
 class MaskedLanguageModel(LightningModule):
 
     def __init__(self, model, pad_token_id, lr=3e-5, device="cpu"):
@@ -50,8 +45,11 @@ class MaskedLanguageModel(LightningModule):
         loss = F.cross_entropy(predictions.view(-1, self.model.ntoken), targets.view(-1), ignore_index=self.pad_token_id)
         self.log('train_loss', loss, prog_bar=True, on_step=True)
         return loss
+    
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
 
-    def validation_step(self, batch, batch_idx):
+"""    def validation_step(self, batch, batch_idx):
         inputs = self._filter_out_too_shorts(batch)
         assert inputs.shape[0] > 0, "Wrong batch (no sequence with more than 1 valid items) check _filter_out_too_shorts"
         print(inputs.shape[0])
@@ -66,8 +64,6 @@ class MaskedLanguageModel(LightningModule):
         predictions = self(inputs, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
 
         loss = F.cross_entropy(predictions.view(-1, self.model.ntoken), targets.view(-1), ignore_index=self.pad_token_id)
-        self.log('val_loss', loss, prog_bar=True, on_step=True)
+        self.log('val_loss', loss, prog_bar=True, on_step=True)"""
 
 
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr)
